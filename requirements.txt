@@ -1,0 +1,4 @@
+wheel
+dialog-bot-sdk
+grpcio
+python-dotenv
