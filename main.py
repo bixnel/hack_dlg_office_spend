@@ -119,6 +119,20 @@ class Bot:
             self.spend_action(user, float(state_info['val']), message.strip())
             self.set_state_info(user[0], '')
             self.set_state(user[0], 'menu')
+        elif state == 'reset_spending':
+            try:
+                n = int(message.strip())
+                self.reset_spending(n)
+                self.bot.messaging.send_message(
+                    self.bot.users.get_user_peer_by_id(user[0]),
+                    'Трата под номером *%s* удалена.' % n
+                )
+                self.set_state(user[0], 'menu')
+            except ValueError:
+                self.bot.messaging.send_message(
+                    self.bot.users.get_user_peer_by_id(user[0]),
+                    'Это не номер траты.'
+                )
 
     def on_click(self, *params):
         user = self.get_user(params[0].uid)
@@ -136,6 +150,25 @@ class Bot:
                 'Ок, пришли мне новый размер бюджета.'
             )
         elif value == 'reset_spending':
+            self.set_state(user[0], 'reset_spending')
+            self.bot.messaging.send_message(
+                self.bot.users.get_user_peer_by_id(user[0]),
+                'Пришли мне номер траты для удаления.\n'
+                'Также можешь удалить *все* расходы, нажав на кнопку',
+                [
+                    interactive_media.InteractiveMediaGroup(
+                        [
+
+                            interactive_media.InteractiveMedia(
+                                7,
+                                interactive_media.InteractiveMediaButton('reset_all', 'Удалить все'),
+                                'danger'
+                            )
+                        ]
+                    )
+                ]
+            )
+        elif value == 'reset_all':
             self.reset_spending()
             self.bot.messaging.send_message(
                 self.bot.users.get_user_peer_by_id(user[0]),
@@ -153,10 +186,10 @@ class Bot:
                 self.bot.users.get_user_peer_by_id(user[0]),
                 '*Список расходов*\n\n'
                 '%s\n\n'
-                'Итого трат: *%s*, остаток: *%s*' % ('\n'.join(['*' + str(i[2]) + ':* ' + str(i[1])
-                                                                if i[2] != ''
-                                                                else '*Без описания:* ' + str(i[1])
-                                                                for i in data]),
+                'Итого трат: *%s*, остаток: *%s*' % ('\n'.join([str(int(data[i][0]) + 1) + '. *' + str(data[i][2]) + ':* ' + str(data[i][1])
+                                                                if data[i][2] != ''
+                                                                else '*Без описания:* ' + str(data[i][1])
+                                                                for i in range(len(data))]),
                                                      spending,
                                                      budget - spending),
                 [
@@ -236,9 +269,12 @@ class Bot:
         cur.close()
         return True
 
-    def reset_spending(self):
+    def reset_spending(self, n=None):
         cur = self.con.cursor()
-        cur.execute('DELETE FROM spending')
+        if not n:
+            cur.execute('DELETE FROM spending')
+        else:
+            cur.execute('DELETE FROM spending WHERE id = ?', (int(n) - 1, ))
         self.con.commit()
         cur.close()
         return True
