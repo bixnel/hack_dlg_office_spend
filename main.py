@@ -6,6 +6,7 @@ import sqlite3
 import json
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
+import xlwt
 
 
 class Bot:
@@ -17,7 +18,12 @@ class Bot:
             grpc.ssl_channel_credentials(),
             os.environ.get('BOT_TOKEN')
         )
-        self.bad = []
+        self.header_style = xlwt.easyxf(
+            'pattern: pattern solid, fore_colour light_yellow;'
+            'font: bold True;'
+            'borders: top_color black, bottom_color black, right_color black, left_color black,'
+            'left thin, right thin, top thin, bottom thin;'
+        )
         self.bot.messaging.on_message_async(self.on_msg, self.on_click)
 
     def on_msg(self, *params):
@@ -56,6 +62,11 @@ class Bot:
                             ),
                             interactive_media.InteractiveMedia(
                                 4,
+                                interactive_media.InteractiveMediaButton('export', 'Экспортировать расходы в Excel'),
+                                'primary'
+                            ),
+                            interactive_media.InteractiveMedia(
+                                5,
                                 interactive_media.InteractiveMediaButton('reset_spending', 'Обнулить траты'),
                                 'danger'
                             )
@@ -169,6 +180,11 @@ class Bot:
                             ),
                             interactive_media.InteractiveMedia(
                                 4,
+                                interactive_media.InteractiveMediaButton('export', 'Экспортировать расходы в Excel'),
+                                'primary'
+                            ),
+                            interactive_media.InteractiveMedia(
+                                5,
                                 interactive_media.InteractiveMediaButton('reset_spending', 'Обнулить траты'),
                                 'danger'
                             )
@@ -176,6 +192,10 @@ class Bot:
                     )
                 ]
             )
+        elif value == 'export':
+            path = self.export_to_excel()
+            self.bot.messaging.send_file(self.bot.users.get_user_peer_by_id(user[0]), path)
+            os.remove(path)
 
     def get_user(self, uid):
         cur = self.con.cursor()
@@ -296,6 +316,11 @@ class Bot:
                         ),
                         interactive_media.InteractiveMedia(
                             4,
+                            interactive_media.InteractiveMediaButton('export', 'Экспортировать расходы в Excel'),
+                            'primary'
+                        ),
+                        interactive_media.InteractiveMedia(
+                            5,
                             interactive_media.InteractiveMediaButton('reset_spending', 'Обнулить траты'),
                             'danger'
                         )
@@ -305,6 +330,24 @@ class Bot:
         )
         self.bot.messaging.send_image(self.bot.users.get_user_peer_by_id(user[0]), path)
         os.remove(path)
+
+    def export_to_excel(self):
+        book = xlwt.Workbook()
+        sheet = book.add_sheet('Лист1', cell_overwrite_ok=True)
+        sheet.write(0, 0, 'Сумма', self.header_style)
+        sheet.write(0, 1, 'Описание', self.header_style)
+
+        data = self.view_spending()
+        print(data)
+        sheet.col(0).width = 256 * 10
+        sheet.col(1).width = 256 * 15
+        for i in range(len(data)):
+            sheet.write(i + 1, 0, data[i][1])
+            sheet.write(i + 1, 1, data[i][2])
+
+        filename = 'Расходы.xls'
+        book.save(filename)
+        return filename
 
 
 bot = Bot()
