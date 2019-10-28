@@ -4,6 +4,8 @@ import grpc
 import os
 import sqlite3
 import json
+import time
+import datetime
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 import xlwt
@@ -186,9 +188,17 @@ class Bot:
                 self.bot.users.get_user_peer_by_id(user[0]),
                 '*Список расходов*\n\n'
                 '%s\n\n'
-                'Итого трат: *%s*, остаток: *%s*' % ('\n'.join([str(int(data[i][0]) + 1) + '. *' + str(data[i][2]) + ':* ' + str(data[i][1])
+                'Итого трат: *%s*, остаток: *%s*' % ('\n'.join([str(int(data[i][0]) + 1) + '. *' + str(data[i][2]) +
+                                                                ':* ' + str(data[i][1]) + ' (' +
+                                                                str(datetime.datetime.fromtimestamp(data[i][3])
+                                                                    .strftime('%d.%m.%Y %H:%M'))
+                                                                + ')'
                                                                 if data[i][2] != ''
-                                                                else '*Без описания:* ' + str(data[i][1])
+                                                                else str(int(data[i][0]) + 1) + '. *Без описания:* ' +
+                                                                     str(data[i][1]) + ' (' +
+                                                                str(datetime.datetime.fromtimestamp(data[i][3])
+                                                                    .strftime('%d.%m.%Y %H:%M'))
+                                                                + ')'
                                                                 for i in range(len(data))]),
                                                      spending,
                                                      budget - spending),
@@ -288,7 +298,8 @@ class Bot:
 
     def spend(self, val, descr):
         cur = self.con.cursor()
-        cur.execute('INSERT INTO spending (val, descr) VALUES (?, ?)', (float(val), str(descr)))
+        cur.execute('INSERT INTO spending (val, descr, time) VALUES (?, ?, ?)', (float(val), str(descr),
+                                                                                 int(time.time())))
         self.con.commit()
         budget = float(cur.execute('SELECT * FROM settings').fetchone()[1])
         spending = float(cur.execute('SELECT SUM(val) FROM spending').fetchone()[0])
@@ -372,14 +383,18 @@ class Bot:
         sheet = book.add_sheet('Лист1', cell_overwrite_ok=True)
         sheet.write(0, 0, 'Сумма', self.header_style)
         sheet.write(0, 1, 'Описание', self.header_style)
+        sheet.write(0, 2, 'Дата', self.header_style)
 
         data = self.view_spending()
         print(data)
         sheet.col(0).width = 256 * 10
         sheet.col(1).width = 256 * 15
+        sheet.col(2).width = 256 * 15
         for i in range(len(data)):
             sheet.write(i + 1, 0, data[i][1])
             sheet.write(i + 1, 1, data[i][2])
+            sheet.write(i + 1, 2, str(datetime.datetime.fromtimestamp(data[i][3])
+                                                                    .strftime('%d.%m.%Y %H:%M')))
 
         filename = 'Расходы.xls'
         book.save(filename)
